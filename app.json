@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Serenity",
+    "slug": "Serenity",
+    "version": "1.0.0",
+    "scheme": "Serenity",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0B0C10",
+    "newArchEnabled": false,
+    "ios": {
+      "bundleIdentifier": "com.example.Serenity",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.example.Serenity",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0B0C10"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-notifications",
+      "expo-font",
+      "expo-asset",
+      "react-native-health-connect",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "minSdkVersion": 26
+          }
+        }
+      ]
+    ]
+  }
+}

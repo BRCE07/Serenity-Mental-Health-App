@@ -1,0 +1,494 @@
+/**
+ * Health Connect connector — bridges Huawei Watch Fit 4 → Huawei Health →
+ * Google Fit → Health Connect → this app.
+ *
+ * Huawei Watch Fit 4 syncs to the Huawei Health app, which syncs to Google Fit.
+ * Android 14+ includes Health Connect in the OS; on Android 13 it's a separate
+ * install from Google Play. This connector reads real health data from Health Connect:
+ * heart rate, sleep records, workouts, steps, and active minutes.
+ *
+ * Setup steps for the user:
+ *   1. Pair Huawei Watch Fit 4 with the Huawei Health app on your phone
+ *   2. In Huawei Health: Settings → Connected Devices → Google Fit → enable sync
+ *   3. Install Health Connect from Google Play (Android 13 only; Android 14+ is pre-installed)
+ *   4. In this app: Settings → Health Sources → Health Connect → Connect
+ */
+
+import {
+  getHealthConnectClient,
+  HealthConnectSdk,
+} from 'react-native-health-connect';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export interface HcHeartRateSample {
+  startDate: string;
+  endDate: string;
+  bpm: number;
+}
+
+export interface HcSleepSample {
+  startDate: string;
+  endDate: string;
+  stage: string; // 'awake', 'asleep', 'light', 'deep', 'rem', 'unknown'
+}
+
+export interface HcWorkoutSession {
+  sessionId: string;
+  activityType: string;
+  startDate: string;
+  endDate: string;
+  calories?: number;
+  distance?: number;
+}
+
+export interface HcDailyStepCount {
+  date: string;
+  steps: number;
+}
+
+export interface HcDailyMoveMinutes {
+  date: string;
+  minutes: number;
+}
+
+export interface HcNightlySleep {
+  date: string;
+  startTime: string;
+  endTime: string;
+  durationMs: number;
+  stages: Record<string, number>;
+  dominantStage: string;
+}
+
+// ─── Utility ─────────────────────────────────────────────────────────────────
+
+function mapSleepStage(code: string): string {
+  switch (code) {
+    case 'AWAKE':
+      return 'awake';
+    case 'SLEEPING':
+    case 'ASLEEP':
+    case 'SLEEP':
+      return 'asleep';
+    case 'LIGHT':
+      return 'light';
+    case 'DEEP':
+      return 'deep';
+    case 'REM':
+      return 'rem';
+    default:
+      return 'unknown';
+  }
+}
+
+function mapActivityType(name: string): string {
+  const map: Record<string, string> = {
+    RUNNING: 'running',
+    WALKING: 'walking',
+    CYCLING: 'cycling',
+    SWIMMING: 'swimming',
+    HIKING: 'hiking',
+    ROWING: 'rowing',
+    WORKOUT: 'workout',
+    STAIR_CLIMBING: 'stair_climbing',
+    HIIT: 'hiit',
+    YOGA: 'yoga',
+    WALKING_NORDIC: 'walking_nordic',
+    SKIING: 'skiing',
+    TENNIS: 'tennis',
+    BADMINTON: 'badminton',
+    SQUASH: 'squash',
+    FOOTBALL_AMERICAN: 'football',
+    FOOTBALL_ASSOCIATION: 'soccer',
+    BASEBALL: 'baseball',
+    BASKETBALL: 'basketball',
+    CRICKET: 'cricket',
+    FIELD_HOCKEY: 'field_hockey',
+    ICE_HOCKEY: 'ice_hockey',
+    LACROSSE: 'lacrosse',
+    PADDLE_TENNIS: 'paddle_tennis',
+    RAQUETBALL: 'raquetball',
+    VOLLEYBALL: 'volleyball',
+    GOLF: 'golf',
+    POLO: 'polo',
+    CLIMBING: 'climbing',
+  };
+  return map[name] || name.toLowerCase();
+}
+
+// ─── Connector class ─────────────────────────────────────────────────────────
+
+class HealthConnectConnector {
+  private authorized = false;
+
+  private async ensureAuthorized() {
+    if (!this.authorized) {
+      try {
+        const status = await HealthConnectSdk.getStatus();
+        if (status.clientAvailable && status.privacyPolicyAccepted) {
+          this.authorized = true;
+        } else {
+          await HealthConnectSdk.requestInitialization({
+            createAccountIfNotFound: true,
+          });
+          this.authorized = true;
+        }
+      } catch {
+        // Health Connect not available
+      }
+    }
+    return this.authorized;
+  }
+
+  async isAuthorized(): Promise<boolean> {
+    try {
+      const status = await HealthConnectSdk.getStatus();
+      return status.clientAvailable && status.privacyPolicyAccepted;
+    } catch {
+      return false;
+    }
+  }
+
+  async authorize(): Promise<{ success: boolean; message?: string }> {
+    try {
+      await this.ensureAuthorized();
+      return { success: true, message: 'Health Connect connected' };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { success: false, message: `Health Connect error: ${msg}` };
+    }
+  }
+
+  async disconnect(): Promise<void> {
+    this.authorized = false;
+  }
+
+  // ─── Heart Rate ───────────────────────────────────────────────────────────
+
+  async getHeartRate(): Promise<HcHeartRateSample[]> {
+    const ok = await this.ensureAuthorized();
+    if (!ok) return [];
+
+    const today = new Date();
+    const start = new Date(today);
+    start.setHours(0, 0, 0, 0);
+
+    try {
+      const response = await getHealthConnectClient().read({
+        type: 'HeartRate',
+        startTime: start.toISOString(),
+        endTime: today.toISOString(),
+      });
+
+      return response.records
+        .map((r: any) => ({
+          startDate: r.startTime,
+          endDate: r.endTime,
+          bpm: parseInt(r.values.beatsPerMinute || '0', 10),
+        }))
+        .filter(r => r.bpm > 0);
+    } catch {
+      return [];
+    }
+  }
+
+  async getDailyAvgHeartRate(
+    startDate: string,
+    endDate: string
+  ): Promise<Record<string, number>> {
+    const ok = await this.ensureAuthorized();
+    if (!ok) return {};
+
+    try {
+      const response = await getHealthConnectClient().read({
+        type: 'HeartRate',
+        startTime: startDate,
+        endTime: endDate,
+      });
+
+      const map: Record<string, number[]> = {};
+      for (const r: any of response.records) {
+        const d = r.startTime.split('T')[0];
+        const bpm = parseInt(r.values.beatsPerMinute || '0', 10);
+        if (bpm <= 0) continue;
+        if (!map[d]) map[d] = [];
+        map[d].push(bpm);
+      }
+      const result: Record<string, number> = {};
+      for (const [d, vals] of Object.entries(map)) {
+        result[d] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+      }
+      return result;
+    } catch {
+      return {};
+    }
+  }
+
+  // ─── Sleep ────────────────────────────────────────────────────────────────
+
+  async getSleepData(): Promise<HcSleepSample[]> {
+    const ok = await this.ensureAuthorized();
+    if (!ok) return [];
+
+    const today = new Date();
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    try {
+      const response = await getHealthConnectClient().read({
+        type: 'Sleep',
+        startTime: weekAgo.toISOString(),
+        endTime: today.toISOString(),
+      });
+
+      return response.records
+        .map((r: any) => ({
+          startDate: r.startTime,
+          endDate: r.endTime,
+          stage: mapSleepStage(r.values.stage || 'UNKNOWN'),
+        }))
+        .sort((a: any, b: any) =>
+          new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
+        );
+    } catch {
+      return [];
+    }
+  }
+
+  async getNightlySleep(
+    startDate: string,
+    endDate: string
+  ): Promise<HcNightlySleep[]> {
+    const ok = await this.ensureAuthorized();
+    if (!ok) return [];
+
+    try {
+      const response = await getHealthConnectClient().read({
+        type: 'Sleep',
+        startTime: startDate,
+        endTime: endDate,
+      });
+
+      const groups: Record<string, any[]> = {};
+      for (const r: any of response.records) {
+        const d = r.startTime.split('T')[0];
+        if (!groups[d]) groups[d] = [];
+        groups[d].push(r);
+      }
+
+      return Object.entries(groups)
+        .map(([nightDate, records]) => {
+          records.sort((a: any, b: any) =>
+            new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+          );
+          const startTime = records[0].startTime;
+          const endTime = records[records.length - 1].endTime;
+          const durationMs =
+            new Date(endTime).getTime() - new Date(startTime).getTime();
+
+          const stages: Record<string, number> = {};
+          let dominantStage = 'asleep';
+          let maxDur = 0;
+          for (const r of records) {
+            const stage = mapSleepStage(r.values.stage || 'UNKNOWN');
+            const dur =
+              new Date(r.endTime).getTime() - new Date(r.startTime).getTime();
+            stages[stage] = (stages[stage] || 0) + dur;
+            if (dur > maxDur) {
+              maxDur = dur;
+              dominantStage = stage;
+            }
+          }
+
+          return {
+            date: nightDate,
+            startTime,
+            endTime,
+            durationMs,
+            stages,
+            dominantStage,
+          };
+        })
+        .sort((a: any, b: any) => b.date.localeCompare(a.date));
+    } catch {
+      return [];
+    }
+  }
+
+  // ─── Steps ────────────────────────────────────────────────────────────────
+
+  async getDailySteps(
+    startDate: string,
+    endDate: string
+  ): Promise<HcDailyStepCount[]> {
+    const ok = await this.ensureAuthorized();
+    if (!ok) return [];
+
+    try {
+      const response = await getHealthConnectClient().read({
+        type: 'Steps',
+        startTime: startDate,
+        endTime: endDate,
+      });
+
+      const map: Record<string, number> = {};
+      for (const r: any of response.records) {
+        const d = r.startTime.split('T')[0];
+        map[d] = (map[d] || 0) + parseInt(r.values.count || '0', 10);
+      }
+      return Object.entries(map)
+        .map(([date, steps]) => ({ date, steps }))
+        .sort((a, b) => b.date.localeCompare(a.date));
+    } catch {
+      return [];
+    }
+  }
+
+  // ─── Calories ─────────────────────────────────────────────────────────────
+
+  async getDailyCalories(
+    startDate: string,
+    endDate: string
+  ): Promise<Record<string, number>> {
+    const ok = await this.ensureAuthorized();
+    if (!ok) return {};
+
+    try {
+      const response = await getHealthConnectClient().read({
+        type: 'Calories',
+        startTime: startDate,
+        endTime: endDate,
+      });
+
+      const map: Record<string, number> = {};
+      for (const r: any of response.records) {
+        const d = r.startTime.split('T')[0];
+        map[d] = (map[d] || 0) + parseFloat(r.values.calories || '0');
+      }
+      return map;
+    } catch {
+      return {};
+    }
+  }
+
+  // ─── Active Minutes ──────────────────────────────────────────────────────
+
+  async getDailyMoveMinutes(
+    startDate: string,
+    endDate: string
+  ): Promise<HcDailyMoveMinutes[]> {
+    const ok = await this.ensureAuthorized();
+    if (!ok) return [];
+
+    try {
+      const response = await getHealthConnectClient().read({
+        type: 'ExerciseTime',
+        startTime: startDate,
+        endTime: endDate,
+      });
+
+      const map: Record<string, number> = {};
+      for (const r: any of response.records) {
+        const d = r.startTime.split('T')[0];
+        const mins = parseFloat(r.values.totalDuration || '0') / 60000;
+        map[d] = (map[d] || 0) + mins;
+      }
+      return Object.entries(map)
+        .map(([date, minutes]) => ({ date, minutes: Math.round(minutes) }))
+        .sort((a, b) => b.date.localeCompare(a.date));
+    } catch {
+      return [];
+    }
+  }
+
+  // ─── Workouts / Sessions ──────────────────────────────────────────────────
+
+  async getWorkoutSessions(
+    startDate: string,
+    endDate: string
+  ): Promise<HcWorkoutSession[]> {
+    const ok = await this.ensureAuthorized();
+    if (!ok) return [];
+
+    try {
+      const response = await getHealthConnectClient().read({
+        type: 'Session',
+        startTime: startDate,
+        endTime: endDate,
+      });
+
+      return response.records
+        .map((r: any) => ({
+          sessionId: r.metadata?.sessionId || r.startTime,
+          activityType: r.name || 'workout',
+          startDate: r.startTime,
+          endDate: r.endTime,
+          calories: r.totalCaloriesBurned
+            ? parseFloat(r.totalCaloriesBurned)
+            : undefined,
+          distance: r.totalDistance ? parseFloat(r.totalDistance) : undefined,
+        }))
+        .sort((a: any, b: any) =>
+          new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
+        );
+    } catch {
+      return [];
+    }
+  }
+
+  // ─── Today Summary ────────────────────────────────────────────────────────
+
+  async getTodaySummary() {
+    const now = new Date();
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+
+    const todayStr = now.toISOString().split('T')[0];
+    const startDate = start.toISOString();
+    const endDate = now.toISOString();
+
+    const [
+      steps,
+      calories,
+      moveMinutes,
+      avgHr,
+      nightlySleep,
+      sessions,
+    ] = await Promise.all([
+      this.getDailySteps(startDate, endDate),
+      this.getDailyCalories(startDate, endDate),
+      this.getDailyMoveMinutes(startDate, endDate),
+      this.getDailyAvgHeartRate(startDate, endDate),
+      this.getNightlySleep(startDate, endDate),
+      this.getWorkoutSessions(startDate, endDate),
+    ]);
+
+    const totalSteps =
+      steps.find(s => s.date === todayStr)?.steps ?? steps.reduce((a, b) => a + b.steps, 0);
+    const totalCal = calories[todayStr] ?? Object.values(calories).reduce((a, b) => a + b, 0);
+    const totalMoveMin =
+      moveMinutes.find(m => m.date === todayStr)?.minutes ??
+      moveMinutes.reduce((a, b) => a + b.minutes, 0);
+    const hr = avgHr[todayStr];
+    const sleepMin = nightlySleep[0]
+      ? Math.round(nightlySleep[0].durationMs / 60000)
+      : undefined;
+
+    return {
+      steps: totalSteps,
+      calories: Math.round(totalCal),
+      activeMinutes: totalMoveMin,
+      heartRate: hr,
+      sleepMinutes: sleepMin,
+      workouts: sessions.length,
+    };
+  }
+
+  mapWorkoutType(name: string): string {
+    return mapActivityType(name);
+  }
+}
+
+export const healthConnect = new HealthConnectConnector();
+export default healthConnect;

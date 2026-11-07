@@ -1,0 +1,125 @@
+import { Connector, DaySummary, SourceId } from '../types';
+import { appleHealth } from './appleHealth';
+import { strava } from './strava';
+import { garmin } from './garmin';
+import * as googleFit from './googleFit';
+
+export const connectors: Record<SourceId, Connector> = {
+  apple: appleHealth,
+  strava,
+  garmin,
+  googleFit: {
+    id: 'googleFit',
+    name: 'Google Fit',
+    description: 'Read heart rate, sleep, and workouts from Google Fit (synced from Huawei Watch)',
+    sourceId: 'googleFit',
+    category: 'health',
+    setupGuide: [
+      'Pair your Huawei Watch Fit 4 with the Huawei Health app',
+      'In Huawei Health: Settings → Connected Devices → Google Fit → enable sync',
+      'Grant Google Fit permissions when prompted on your phone',
+      'Return here and tap Connect — you will be asked to sign in to Google',
+    ],
+    async isConnected() {
+      return googleFit.isAuthorized();
+    },
+    async connect(): Promise<ConnectorResult> {
+      const auth = await googleFit.authorize({
+        scopes: [
+          'https://www.googleapis.com/auth/fitness.activity.read',
+          'https://www.googleapis.com/auth/fitness.body.read',
+          'https://www.googleapis.com/auth/fitness.heart_rate.read',
+          'https://www.googleapis.com/auth/fitness.sleep.read',
+        ],
+      });
+      if (auth.success) {
+        return { success: true, message: 'Google Fit connected' };
+      }
+      return { success: false, message: auth.message ?? 'Authorization failed' };
+    },
+    async disconnect() {
+      googleFit.disconnect();
+    },
+    async fetchSummary() {
+      const now = new Date();
+      const start = new Date(now);
+      start.setMonth(start.getMonth() - 1);
+      const endDate = now.toISOString();
+      const startDate = start.toISOString();
+
+      const [dailySteps, dailyMoveMinutes, dailyCalories, dailyAvgHr, nightlySleep] = await Promise.all([
+        googleFit.getDailySteps(startDate, endDate),
+        googleFit.getDailyMoveMinutes(startDate, endDate),
+        googleFit.getDailyCalories(startDate, endDate),
+        googleFit.getDailyAvgHeartRate(startDate, endDate),
+        googleFit.getNightlySleep(startDate, endDate),
+      ]);
+
+      // Build daily history
+      const history: DaySummary['history'] = [];
+      const days = [...new Set([
+        ...dailySteps.map(s => s.date),
+        ...dailyMoveMinutes.map(m => m.date),
+        ...Object.keys(dailyCalories),
+        ...Object.keys(dailyAvgHr),
+        ...nightlySleep.map(n => n.date),
+      ])].sort();
+
+      for (const date of days) {
+        const steps = dailySteps.find(s => s.date.startsWith(date));
+        const moveMins = dailyMoveMinutes.find(m => m.date.startsWith(date));
+        const cal = dailyCalories[date];
+        const hr = dailyAvgHr[date];
+        const sleep = nightlySleep.find(n => n.date === date);
+
+        history.push({
+          date,
+          steps: steps?.steps ?? 0,
+          calories: cal ?? 0,
+          activeMinutes: moveMins?.minutes ?? 0,
+          heartRate: hr,
+          sleepMinutes: sleep ? Math.round(sleep.durationMs / 60000) : undefined,
+        });
+      }
+
+      const today = now.toISOString().split('T')[0];
+      const todayData = history.find(h => h.date === today);
+
+      return {
+        history,
+        steps: todayData?.steps ?? 0,
+        calories: todayData?.calories ?? 0,
+        activeMinutes: todayData?.activeMinutes ?? 0,
+        heartRate: todayData?.heartRate,
+        sleepMinutes: todayData?.sleepMinutes,
+      };
+    },
+    async fetchWorkouts() {
+      const now = new Date();
+      const start = new Date(now);
+      start.setMonth(start.getMonth() - 1);
+      const sessions = await googleFit.getWorkoutSessions(
+        start.toISOString(),
+        now.toISOString()
+      );
+
+      return sessions.map(s => ({
+        id: `${s.source}-${s.startDate}`,
+        type: googleFit.mapWorkoutType(s.activityType),
+        durationMinutes: Math.round(
+          (new Date(s.endDate).getTime() - new Date(s.startDate).getTime()) / 60000
+        ),
+        calories: s.calories ?? undefined,
+        distance: s.distance ? s.distance / 1000 : undefined, // meters → km
+        startDate: s.startDate,
+        endDate: s.endDate,
+        source: 'googleFit',
+        steps: undefined,
+        pace: undefined,
+        elevation: undefined,
+      }));
+    },
+  } as Connector,
+};
+
+export const connectorList: Connector[] = [appleHealth, strava, garmin, connectors.googleFit];

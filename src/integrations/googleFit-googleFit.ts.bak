@@ -1,0 +1,401 @@
+/**
+ * Google Fit connector — bridges Huawei Watch Fit 4 → Huawei Health → Google Fit → this app.
+ *
+ * Huawei Watch Fit 4 syncs to the Huawei Health app, which syncs to Google Fit.
+ * This connector reads real health data from Google Fit: heart rate, sleep records,
+ * workouts, steps, and move minutes.
+ *
+ * Setup steps for the user:
+ *   1. Pair Huawei Watch Fit 4 with the Huawei Health app on your phone
+ *   2. In Huawei Health: Settings → Connected Devices → Google Fit → enable sync
+ *   3. Grant Google Fit permissions when prompted
+ *   4. In this app: Settings → Health Sources → Google Fit → connect
+ */
+
+import GoogleFit, { Scopes, SleepStage, ActivityType, BucketUnit } from 'react-native-google-fit';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export interface GfHeartRateSample {
+  startDate: string;
+  endDate: string;
+  bpm: number;
+  source: string;
+}
+
+export interface GfSleepSample {
+  startDate: string;
+  endDate: string;
+  stage: 'AWAKE' | 'SLEEP' | 'OUT_OF_BED' | 'LIGHT' | 'DEEP' | 'REM';
+  source: string;
+}
+
+export interface GfWorkoutSession {
+  startDate: string;
+  endDate: string;
+  activityType: string;
+  calories?: number;
+  distance?: number;
+  source: string;
+}
+
+export interface GfStepBucket {
+  date: string;
+  steps: number;
+}
+
+export interface GfMoveMinuteBucket {
+  date: string;
+  minutes: number;
+}
+
+// ─── Authorization ───────────────────────────────────────────────────────────
+
+export interface GfAuthOptions {
+  scopes?: string[];
+}
+
+export async function authorize(options: GfAuthOptions = {}): Promise<{ success: boolean; message?: string }> {
+  const opts: GfAuthOptions = {
+    scopes: options.scopes ?? [
+      Scopes.FITNESS_ACTIVITY_READ,
+      Scopes.FITNESS_BODY_READ,
+      Scopes.FITNESS_HEART_RATE_READ,
+      Scopes.FITNESS_SLEEP_READ,
+      Scopes.FITNESS_LOCATION_READ,
+    ],
+  };
+  return GoogleFit.authorize(opts);
+}
+
+export async function isAuthorized(): Promise<boolean> {
+  try {
+    await GoogleFit.checkIsAuthorized();
+    return GoogleFit.isAuthorized;
+  } catch {
+    return false;
+  }
+}
+
+export function disconnect(): void {
+  GoogleFit.disconnect();
+}
+
+// ─── Heart Rate ──────────────────────────────────────────────────────────────
+
+/** Fetch heart rate samples for a date range, bucketed into 1-minute intervals */
+export async function getHeartRateSamples(
+  startDate: string,
+  endDate: string
+): Promise<GfHeartRateSample[]> {
+  const samples = await GoogleFit.getHeartRateSamples({
+    startDate,
+    endDate,
+    bucketUnit: BucketUnit.MINUTE,
+    bucketInterval: 1,
+  });
+
+  const result: GfHeartRateSample[] = [];
+  for (const bucket of samples) {
+    for (const datum of bucket) {
+      if (datum.bpm && datum.bpm > 0) {
+        result.push({
+          startDate: datum.startDate || datum.bucketStartDate || '',
+          endDate: datum.endDate || datum.bucketEndDate || '',
+          bpm: datum.bpm,
+          source: datum.source || 'unknown',
+        });
+      }
+    }
+  }
+  return result;
+}
+
+/** Compute daily average heart rate for a date range */
+export async function getDailyAvgHeartRate(
+  startDate: string,
+  endDate: string
+): Promise<Record<string, number>> {
+  const samples = await getHeartRateSamples(startDate, endDate);
+  const daily: Record<string, number[]> = {};
+
+  for (const s of samples) {
+    const day = s.startDate.split('T')[0];
+    if (!daily[day]) daily[day] = [];
+    daily[day].push(s.bpm);
+  }
+
+  const result: Record<string, number> = {};
+  for (const [day, values] of Object.entries(daily)) {
+    result[day] = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+  }
+  return result;
+}
+
+// ─── Sleep ───────────────────────────────────────────────────────────────────
+
+/** Fetch sleep sessions for a date range */
+export async function getSleepSamples(
+  startDate: string,
+  endDate: string
+): Promise<GfSleepSample[]> {
+  const samples = await GoogleFit.getSleepSamples(
+    { startDate, endDate },
+    true // inLocalTimeZone
+  );
+
+  const result: GfSleepSample[] = [];
+  for (const bucket of samples) {
+    for (const datum of bucket) {
+      const stageMap: Record<number, GfSleepSample['stage']> = {
+        1: 'AWAKE',
+        2: 'SLEEP',
+        3: 'OUT_OF_BED',
+        4: 'LIGHT',
+        5: 'DEEP',
+        6: 'REM',
+      };
+      const stageNum = datum.stage ?? datum.sleepStage ?? 2;
+      result.push({
+        startDate: datum.startDate || '',
+        endDate: datum.endDate || '',
+        stage: stageMap[stageNum] || 'SLEEP',
+        source: datum.source || 'unknown',
+      });
+    }
+  }
+  return result;
+}
+
+/** Aggregate sleep sessions into nightly records with total duration and dominant stage */
+export interface GfNightlySleep {
+  date: string;
+  startTime: string;
+  endTime: string;
+  durationMs: number;
+  stages: Record<string, number>; // stage → duration in ms
+  dominantStage: string;
+  source: string;
+}
+
+export async function getNightlySleep(
+  startDate: string,
+  endDate: string
+): Promise<GfNightlySleep[]> {
+  const samples = await getSleepSamples(startDate, endDate);
+
+  // Group by date (the sleep that spans midnight belongs to the night it starts on)
+  const groups: Record<string, GfSleepSample[]> = {};
+  for (const s of samples) {
+    const day = s.startDate.split('T')[0];
+    if (!groups[day]) groups[day] = [];
+    groups[day].push(s);
+  }
+
+  const nights: GfNightlySleep[] = [];
+  for (const [nightDate, sessions] of Object.entries(groups)) {
+    sessions.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+
+    const startTime = sessions[0].startDate;
+    const endTime = sessions[sessions.length - 1].endDate;
+    const durationMs = new Date(endTime).getTime() - new Date(startTime).getTime();
+
+    const stages: Record<string, number> = {};
+    let dominantStage = 'SLEEP';
+    let maxDuration = 0;
+
+    for (const s of sessions) {
+      const dur = new Date(s.endDate).getTime() - new Date(s.startDate).getTime();
+      stages[s.stage] = (stages[s.stage] || 0) + dur;
+      if (dur > maxDuration) {
+        maxDuration = dur;
+        dominantStage = s.stage;
+      }
+    }
+
+    nights.push({
+      date: nightDate,
+      startTime,
+      endTime,
+      durationMs,
+      stages,
+      dominantStage,
+      source: sessions[0].source || 'unknown',
+    });
+  }
+
+  return nights;
+}
+
+// ─── Workouts ────────────────────────────────────────────────────────────────
+
+/** Map Google Fit activity type to our internal workout type */
+export function mapWorkoutType(activityType: string): string {
+  const typeMap: Record<string, string> = {
+    [ActivityType.Running]: 'running',
+    [ActivityType.Walking]: 'walking',
+    [ActivityType.Cycling]: 'cycling',
+    [ActivityType.StationaryBike]: 'stationary_bike',
+    [ActivityType.Hiking]: 'hiking',
+    [ActivityType.Rowing]: 'rowing',
+    [ActivityType.StrengthTraining]: 'strength_training',
+    [ActivityType.Yoga]: 'yoga',
+    [ActivityType.Swimming]: 'swimming',
+    [ActivityType.Dancing]: 'dancing',
+    [ActivityType.Workout]: 'other',
+    [ActivityType.Hiit]: 'hiit',
+    [ActivityType.Marathon]: 'running',
+    [ActivityType.Jogging]: 'running',
+    [ActivityType.Treadmill]: 'running',
+  };
+  return typeMap[activityType] || 'other';
+}
+
+/** Fetch workout sessions for a date range */
+export async function getWorkoutSessions(
+  startDate: string,
+  endDate: string
+): Promise<GfWorkoutSession[]> {
+  const sessions = await GoogleFit.getWorkoutSession({
+    startDate,
+    endDate,
+  });
+
+  const result: GfWorkoutSession[] = [];
+  for (const session of sessions) {
+    result.push({
+      startDate: session.startDate,
+      endDate: session.endDate,
+      activityType: session.activityType || 'Workout',
+      calories: session.calories,
+      distance: session.distance,
+      source: session.source || 'unknown',
+    });
+  }
+  return result;
+}
+
+// ─── Steps & Activity ────────────────────────────────────────────────────────
+
+/** Get daily step count for a date range */
+export async function getDailySteps(
+  startDate: string,
+  endDate: string
+): Promise<GfStepBucket[]> {
+  const samples = await GoogleFit.getDailyStepCountSamples({
+    startDate,
+    endDate,
+    bucketUnit: BucketUnit.DAY,
+    bucketInterval: 1,
+  });
+
+  const result: GfStepBucket[] = [];
+  for (const bucket of samples) {
+    for (const datum of bucket) {
+      if (datum.steps) {
+        result.push({
+          date: datum.bucketStartDate || datum.startDate || '',
+          steps: datum.steps,
+        });
+      }
+    }
+  }
+  return result;
+}
+
+/** Get daily move minutes for a date range */
+export async function getDailyMoveMinutes(
+  startDate: string,
+  endDate: string
+): Promise<GfMoveMinuteBucket[]> {
+  const samples = await GoogleFit.getMoveMinutes({
+    startDate,
+    endDate,
+    bucketUnit: BucketUnit.DAY,
+    bucketInterval: 1,
+  });
+
+  const result: GfMoveMinuteBucket[] = [];
+  for (const bucket of samples) {
+    for (const datum of bucket) {
+      if (datum.duration) {
+        result.push({
+          date: datum.bucketStartDate || datum.startDate || '',
+          minutes: Math.round(datum.duration / 60000), // ms → minutes
+        });
+      }
+    }
+  }
+  return result;
+}
+
+/** Get daily calorie expenditure for a date range */
+export async function getDailyCalories(
+  startDate: string,
+  endDate: string
+): Promise<Record<string, number>> {
+  const samples = await GoogleFit.getDailyCalorieSamples({
+    startDate,
+    endDate,
+    bucketUnit: BucketUnit.DAY,
+    bucketInterval: 1,
+  });
+
+  const result: Record<string, number> = {};
+  for (const bucket of samples) {
+    for (const datum of bucket) {
+      if (datum.calories) {
+        const day = datum.bucketStartDate || datum.startDate || '';
+        result[day] = datum.calories;
+      }
+    }
+  }
+  return result;
+}
+
+// ─── Quick Stats (all-in-one) ────────────────────────────────────────────────
+
+export interface GfDailyStats {
+  date: string;
+  steps: number;
+  moveMinutes: number;
+  calories: number;
+  avgHeartRate?: number;
+  totalSleepMs?: number;
+  dominantSleepStage?: string;
+  workouts?: GfWorkoutSession[];
+}
+
+/** Fetch a full day's stats in one call */
+export async function getDailyStats(date: string): Promise<GfDailyStats | null> {
+  const startOfDay = `${date}T00:00:00.000Z`;
+  const endOfDay = `${date}T23:59:59.999Z`;
+
+  const [steps, moveMinutes, calories, hrSamples, sleep, workouts] = await Promise.all([
+    getDailySteps(startOfDay, endOfDay),
+    getDailyMoveMinutes(startOfDay, endOfDay),
+    getDailyCalories(startOfDay, endOfDay),
+    getHeartRateSamples(startOfDay, endOfDay),
+    getNightlySleep(date, date),
+    getWorkoutSessions(startOfDay, endOfDay),
+  ]);
+
+  const stepsCount = steps[0]?.steps ?? 0;
+  const moveMin = moveMinutes[0]?.minutes ?? 0;
+  const cal = calories[date] ?? 0;
+  const avgHr = hrSamples.length > 0
+    ? Math.round(hrSamples.reduce((a, s) => a + s.bpm, 0) / hrSamples.length)
+    : undefined;
+  const nightSleep = sleep[0];
+
+  return {
+    date,
+    steps: stepsCount,
+    moveMinutes: moveMin,
+    calories: cal,
+    avgHeartRate: avgHr,
+    totalSleepMs: nightSleep?.durationMs,
+    dominantSleepStage: nightSleep?.dominantStage,
+    workouts: workouts.length > 0 ? workouts : undefined,
+  };
+}
