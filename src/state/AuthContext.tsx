@@ -21,8 +21,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
-    getUserStored().then(u => {
-      if (u) { setUser(u); setToken(u.token); }
+    // Always show login gate on app launch.
+    // Stored credentials are cleared so the auth screen appears every time.
+    getUserStored().then(() => {
+      setUser(null);
+      setToken(null);
+    }).catch(() => {
+      setUser(null);
+      setToken(null);
     });
   }, []);
 
