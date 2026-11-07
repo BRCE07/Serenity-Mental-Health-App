@@ -1,84 +1,266 @@
 # Serenity
 
-A calm, modern health app: one daily **Balance** score built from Move, Recover and Heart, with Apple Health (Apple Watch) and Strava connections.
+A calm, modern health and wellbeing app: one daily **Balance** score built from Move, Recover and Heart data, with Apple Health (Apple Watch), Strava, Garmin, and Google Fit connections.
 
-Built with Expo (React Native) + TypeScript + expo-router. Dark-first, minimal.
+Built with Expo (React Native) + TypeScript + expo-router. Dark-first, minimal design.
 
 ## Screens
-- **Today**: tri-ring Balance score, one-line insight, key metrics, recent workouts
-- **Activity**: 7-day steps, active minutes, energy, all workouts
-- **Recovery**: sleep stages, heart rate today, HRV and resting HR trends
-- **Sources**: connect Apple Health, Strava, Garmin (via Strava)
 
-The app starts with **sample data**. Once you connect a source it switches to real data.
-
-## Run it
-
-1. Install Node.js LTS (https://nodejs.org) and, for iPhone builds, a Mac with Xcode.
-2. In this folder:
-   ```
-   npm install
-   npx expo install --fix      # aligns package versions with your Expo SDK
-   copy .env.example .env      # then fill in Strava keys
-   ```
-3. Because HealthKit and OAuth deep links need native code, use a **dev build**, not Expo Go:
-   ```
-   npx expo run:ios --device   # Apple Health / Apple Watch (needs a real iPhone + Mac)
-   npx expo run:android        # Android works too (sample data + Strava; no HealthKit)
-   ```
-   Without a Mac you can use EAS Build: `npx eas build --profile development --platform ios`.
-
-## Backend (optional)
-
-An optional Express/MySQL backend is provided in the `api/` directory. It supports:
-
-- **Account management** — register, login, JWT authentication
-- **Cloud sync** — sync health data across devices via REST API
-- **Offline-first** — data is stored locally via AsyncStorage and synced when online
-
-To set up the backend:
-
-1. Ensure XAMPP MySQL is running.
-2. Import the schema: `mysql -u root -p < api/schema.sql`
-3. Install dependencies: `cd api && npm install`
-4. Configure credentials in `api/.env`
-5. Start the server: `npm start` (runs on port 3000 by default)
-
-## Integrations
-
-| Source | Status |
+| Tab | What it shows |
 |---|---|
-| **Apple Health / Apple Watch** | Implemented via `react-native-health`. Apple Watch writes to HealthKit, so reading HealthKit covers it. iPhone only. |
-| **Strava** | Implemented: OAuth + `GET /athlete/activities`. Create an app at https://www.strava.com/settings/api and set **Authorization Callback Domain** to `redirect`. |
-| **Garmin** | Not direct. Garmin's API is server-to-server and requires partner approval. Workaround: in Garmin Connect enable Strava under Partner Apps; Serenity then reads your Garmin activities through Strava. |
+| **Today** | Tri-ring Balance score, one-line insight, key metrics, recent workouts |
+| **Activity** | 7-day steps, active minutes, energy, all workouts |
+| **Recovery** | Sleep stages, heart rate today, HRV and resting HR trends |
+| **Mind** | Mood tracker, journaling, coping strategies, mental health guides, emergency contacts |
+| **Settings** | Profile editing, hobby tags, health source connectors, account management, sync status |
 
-> Strava client secret: the prototype reads it from `EXPO_PUBLIC_STRAVA_CLIENT_SECRET`, which ships inside the app. For production, do the token exchange on your own backend.
+The app starts with **sample data**. Connect a health source to switch to real data.
 
-Add another source by implementing `Connector` ([src/types.ts](src/types.ts)) and registering it in [src/integrations/registry.ts](src/integrations/registry.ts).
+---
 
-## Mind (mental wellbeing)
-A fifth tab, **Mind**, adds:
+## Quick Start
 
-| Feature | Where | Notes |
-|---|---|---|
-| Daily mood tracker | `app/mind/mood.tsx` | 5-step "weather" scale, tags, notes, 14-day strip. Today's mood feeds the **Recover** ring on the Today screen. |
-| Private journaling | `app/mind/journal.tsx` | Stored only on-device (AsyncStorage). Writing prompts included. |
-| Stress management & coping | `app/mind/coping.tsx` | Animated guided breathing (Box, 4-7-8, Calm) plus step-by-step strategies. |
-| Mental health information | `app/mind/learn.tsx` | Plain-language guides: stress, anxiety, depression, burnout, sleep, panic. |
-| Counseling booking | `app/mind/counseling.tsx` | Browse by specialty, pick day/time/session type, manage requests. **Fictional sample counselors; bookings are local requests.** |
-| Emergency hotlines & contacts | `app/mind/help.tsx` | Philippines (default), US, elsewhere. One-tap call/text. Add your own trusted contacts. |
-| Anonymous community | `app/mind/community.tsx` | Random alias, posts, "send a hug". **Preview only: posts stay on the device.** |
-| Gentle reminders & notes | `app/mind/reminders.tsx` | Local notifications for check-in, journaling and a rotating motivational note. Off by default. |
+### Prerequisites
 
-Safety touches: crisis language in notes, journal or community posts surfaces a link to crisis support; a "Need help now?" button sits at the top of Mind.
+- **Node.js** LTS (https://nodejs.org)
+- For Android builds: JDK 17+ (https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html)
+- For iOS builds: Mac with Xcode
+- For HealthKit (Apple Watch): A real iPhone (not simulator)
 
-Content and hotline data live in [src/mind/content.ts](src/mind/content.ts). Hotline numbers were checked against public sources in Nov 2026, but numbers change, so re-verify before release.
+### Install & Run
+
+```bash
+# 1. Clone and install
+git clone https://github.com/itsmenexus23/Serenity-Mental-Health-App.git
+cd Serenity-Mental-Health-App
+npm install
+npx expo install --fix
+
+# 2. Configure environment variables
+copy .env.example .env
+# Edit .env and add your Strava API keys (see Integrations below)
+
+# 3. Run the app
+npx expo run:android          # Android build
+npx expo run:ios --device     # iOS build (needs real iPhone + Mac)
+```
+
+> **Note:** HealthKit and OAuth deep links require a **dev build**, not Expo Go.
+
+---
+
+## Backend (Optional — for cloud sync)
+
+The backend enables **account-based sync** so your health data follows you across devices.
+
+### Step 1: Set up MySQL
+
+1. Install XAMPP (https://www.apachefriends.org) and start the **MySQL** service.
+2. Open phpMyAdmin: http://localhost/phpmyadmin
+3. Click **SQL** tab, then **Open** the file:
+   ```
+   api/schema.sql
+   ```
+4. Click **Go** to create the database tables (`users`, `health_data`, `workouts`, `profiles`, `user_hobbies`).
+
+### Step 2: Configure the backend
+
+1. Copy the `.env` file:
+   ```bash
+   cd api
+   copy .env.example .env
+   ```
+2. Edit `api/.env` and fill in your MySQL credentials:
+   ```env
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_USER=root
+   DB_PASSWORD=your_mysql_password_here
+   JWT_SECRET=your_random_secret_string_here
+   ```
+3. Install dependencies and start:
+   ```bash
+   npm install
+   npm start
+   ```
+   The server runs at **http://localhost:3000**.
+
+### Step 3: Connect the app to your backend
+
+In the app, go to **Settings → Server Health**. The status will show `Online` when connected. Health data will automatically sync when online and store locally when offline.
+
+---
+
+## Integrations (Smartwatches & Health Apps)
+
+### Apple Health / Apple Watch (iOS)
+
+Apple Watch data flows through HealthKit on the iPhone.
+
+1. Wear your Apple Watch and complete a workout (open the **Workout** app, choose an activity type, tap **Start**).
+2. Open Serenity → **Settings** → tap **Apple Health**.
+3. Grant permission when iOS prompts you.
+4. Data (steps, heart rate, sleep, workouts) will sync automatically.
+
+**Requirements:** iPhone with iOS 13+, Apple Watch (Series 3 or later), real device (not simulator).
+
+### Strava
+
+Strava syncs running, cycling, swimming and other activities.
+
+1. Create a developer app: https://www.strava.com/settings/api
+2. Fill in:
+   - **Application Name**: `Serenity`
+   - **Category**: Select any
+   - **Website**: `https://example.com`
+   - **Authorization Callback Domain**: `redirect` (this is required)
+3. Copy your **Client ID** and **Client Secret**.
+4. Paste them into `Serenity/.env`:
+   ```env
+   EXPO_PUBLIC_STRAVA_CLIENT_ID=your_client_id
+   EXPO_PUBLIC_STRAVA_CLIENT_SECRET=your_client_secret
+   ```
+5. In the app: **Settings → Strava → Connect**. Follow the OAuth flow to authorize.
+
+> **Warning:** Client secrets in the `.env` ship inside the app bundle. For production, do the token exchange on your own backend instead of in the app.
+
+### Garmin
+
+Garmin does not offer a direct public API. Workaround:
+
+1. Install **Garmin Connect** on your phone.
+2. Open Garmin Connect → **Settings** → **Connected Apps**.
+3. Find **Strava** and enable it under Partner Apps.
+4. Authorize Garmin Connect to share data with Strava.
+5. Connect Strava in Serenity (see above). Garmin data will flow through Strava automatically.
+
+Activities synced: runs, rides, hikes, swims (if recorded as Strava-compatible activities).
+
+### Google Fit (Android)
+
+Google Fit syncs steps, heart rate, workouts and sleep data.
+
+1. Install Google Fit from the Play Store if you don't have it.
+2. In the app: **Settings → Google Fit → Connect**.
+3. Grant permissions.
+4. Data syncs automatically.
+
+> Google Fit requires the `react-native-google-fit` native module. If building for Android, ensure you have Android Studio and SDK 33+ installed.
+
+---
+
+## Mind Tab Features
+
+### Mood Tracker (`app/mind/mood.tsx`)
+
+Log your daily mood on a 5-step "weather" scale (☀️ Great → 🌧️ Low). Add tags and optional notes. Shows a 14-day mood strip. Today's mood feeds the **Recover** ring on the Today screen.
+
+### Journaling (`app/mind/journal.tsx`)
+
+Private, device-only journaling with writing prompts. All data stays on-device via AsyncStorage (no cloud sync for journals).
+
+### Stress Management (`app/mind/coping.tsx`)
+
+Guided breathing exercises (Box, 4-7-8, Calm techniques) with step-by-step animations. Plus practical coping strategies for anxiety, stress and burnout.
+
+### Mental Health Guides (`app/mind/learn.tsx`)
+
+Plain-language articles covering: stress, anxiety, depression, burnout, sleep hygiene and panic attacks.
+
+### Counseling Booking (`app/mind/counseling.tsx`)
+
+Browse fictional sample counselors by specialty, pick day/time/session type. Bookings are stored locally (preview feature — no live backend yet).
+
+### Emergency Contacts (`app/mind/help.tsx`)
+
+One-tap call/text for crisis hotlines (Philippines, US, international). Add your own trusted contacts.
+
+### Community (`app/mind/community.tsx`)
+
+Anonymous posts with random aliases and "send a hug" support. **Preview only** — posts stay on-device (no server yet).
+
+### Reminders (`app/mind/reminders.tsx`)
+
+Local notifications for daily check-ins, journaling prompts and rotating motivational notes. Off by default.
+
+---
+
+## Settings Tab
+
+| Section | What it does |
+|---|---|
+| **Profile** | Display name, avatar, edit profile modal |
+| **Hobbies** | Tag picker with 20 preset options, stored locally |
+| **Health Sources** | Connect Apple Health, Strava, Garmin (via Strava), Google Fit |
+| **Account** | Sign out (clears local session, returns to login) |
+| **Server Status** | Shows if the optional backend is reachable |
+
+---
+
+## Account System
+
+### Login / Sign Up
+
+- Open the app → login screen appears (always, on fresh launch).
+- **Sign Up**: Create an account with email, username and password (min 6 chars).
+- **Sign In**: Enter registered credentials.
+- Credentials are stored locally for login form convenience but you must log in each time the app opens.
+
+### Cloud Sync
+
+- Data loads from **local storage** (AsyncStorage) first.
+- When online, the app syncs with the backend API automatically.
+- Data persists locally even when offline — sync resumes when connection returns.
+
+---
+
+## Building for Production
+
+### Android APK
+
+```bash
+cd android
+bash ./gradlew assembleRelease --no-daemon --console=plain
+```
+
+Output: `android/app/build/outputs/apk/release/app-release.apk`
+
+### iOS App Store
+
+```bash
+npx eas build --profile production --platform ios
+```
+
+Requires an Apple Developer account and EAS account setup.
+
+---
+
+## Adding a New Health Source
+
+1. Implement the `Connector` interface in `src/types.ts`:
+   ```typescript
+   interface Connector {
+     id: SourceId;
+     title: string;
+     icon: string;
+     connect(): Promise<void>;
+     disconnect(): Promise<void>;
+     isConnected: boolean;
+   }
+   ```
+2. Register it in `src/integrations/registry.ts`.
+3. Add the data-fetching logic to your connector implementation.
+
+---
 
 ## Notes
+
 - Dependencies are installed and `npm run typecheck` passes. A full Android JS bundle (`npx expo export --platform android`) builds successfully.
 - If `npm install` fails with `UNABLE_TO_VERIFY_LEAF_SIGNATURE` (a network that re-signs HTTPS traffic), run it with Node using the Windows certificate store, keeping TLS verification on: `$env:NODE_OPTIONS="--use-system-ca"`.
 - New Architecture is disabled in `app.json` because `react-native-health` is untested with it.
 - Not yet run on a device or emulator. Expect small runtime fixes (e.g. HealthKit field names).
+
+---
 
 ## License
 
