@@ -7,7 +7,7 @@ import { Workout } from '../types';
 import { fmtDistance, fmtDuration, relativeDay, sportIcon } from '../lib/format';
 
 const SOURCE_LABEL: Record<Workout['source'], string> = {
-  apple: 'Apple Watch', strava: 'Strava', garmin: 'Garmin', demo: 'Sample',
+  apple: 'Apple Watch', strava: 'Strava', garmin: 'Garmin', demo: 'Sample', googleFit: 'Google Fit',
 };
 
 export function WorkoutRow({ w, last }: { w: Workout; last?: boolean }) {

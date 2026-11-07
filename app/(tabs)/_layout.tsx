@@ -27,7 +27,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="activity" options={{ title: 'Activity', tabBarIcon: icon('flame-outline', 'flame') }} />
       <Tabs.Screen name="recovery" options={{ title: 'Recovery', tabBarIcon: icon('moon-outline', 'moon') }} />
       <Tabs.Screen name="mind" options={{ title: 'Mind', tabBarIcon: icon('heart-circle-outline', 'heart-circle') }} />
-      <Tabs.Screen name="sources" options={{ title: 'Sources', tabBarIcon: icon('link-outline', 'link') }} />
+      <Tabs.Screen name="settings" options={{ title: 'Settings', tabBarIcon: icon('settings-outline', 'settings') }} />
     </Tabs>
   );
 }

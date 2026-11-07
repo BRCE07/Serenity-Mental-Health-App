@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  KeyboardAvoidingView, Platform, StyleProp, Text as RNText, TextStyle, View, ViewStyle, ScrollView, RefreshControl,
+  KeyboardAvoidingView, Platform, StyleProp, Text as RNText, TextInput, TextStyle, View, ViewStyle, ScrollView, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, space, type } from '../theme';
@@ -87,5 +87,41 @@ export function Chip({ children, color = colors.muted }: { children: React.React
         {children}
       </Txt>
     </View>
+  );
+}
+
+export function Input({
+  placeholder, value, onChangeText, secureTextEntry, keyboardType, autoCapitalize,
+  returnKeyType, onSubmitEditing,
+}: {
+  placeholder?: string;
+  value: string;
+  onChangeText?: (text: string) => void;
+  secureTextEntry?: boolean;
+  keyboardType?: 'default' | 'email-address' | 'numeric' | 'ascii-capable' | 'numbers-and-punctuation' | 'url' | 'number-pad' | 'phone-pad' | 'decimal-pad' | 'twitter' | 'web-search';
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  returnKeyType?: 'default' | 'go' | 'google' | 'join' | 'next' | 'route' | 'search' | 'send' | 'done' | 'emergency-call';
+  onSubmitEditing?: () => void;
+}) {
+  return (
+    <TextInput
+      placeholder={placeholder}
+      placeholderTextColor={colors.faint}
+      value={value}
+      onChangeText={onChangeText}
+      secureTextEntry={secureTextEntry}
+      keyboardType={keyboardType}
+      autoCapitalize={autoCapitalize ?? 'none'}
+      returnKeyType={returnKeyType}
+      onSubmitEditing={onSubmitEditing}
+      style={{
+        height: 50,
+        backgroundColor: colors.cardHi,
+        borderRadius: radius.md,
+        paddingHorizontal: space.md,
+        color: colors.text,
+        fontSize: 16,
+      }}
+    />
   );
 }

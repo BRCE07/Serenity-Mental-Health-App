@@ -1,6 +1,11 @@
 export type SourceId = 'apple' | 'strava' | 'garmin' | 'googleFit';
 export type WorkoutSource = SourceId | 'demo' | 'googleFit';
 
+export interface UserProfile {
+  displayName: string;
+  hobbies: string[];
+}
+
 export interface Workout {
   id: string;
   source: WorkoutSource;
