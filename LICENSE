@@ -1,0 +1,43 @@
+# Serenity — License
+
+**Copyright (c) 2026 GAntiGrav / Bryce**
+
+This software is licensed under a custom open-source license (the "Serenity License"). You may do the following:
+
+- **Use**: Run the program for personal, internal, or non-commercial purposes.
+- **Study**: View and modify the source code.
+- **Share**: Distribute unmodified copies of this repository under the same license terms.
+- **Contribute**: Submit bug fixes, improvements, or enhancements (see Contributions below).
+
+The following is **strictly prohibited**:
+
+1. **Commercial Resale** — You may **not** sell, sublicense, lease, rent, or otherwise monetize this program or any derivative works **as a standalone product or included as a core feature of a commercial application**.
+2. **Locked Proprietary Forks** — You may not distribute modified versions in a form that restricts downstream users from accessing the source code and the original terms.
+3. **Removing Attribution** — You must retain all copyright notices, license text, and the AI-assistance disclaimer in all copies.
+
+### Penalties for Violation
+
+If you violate this license, the following consequences apply:
+
+- **Immediate Termination** — All rights granted herein are terminated immediately upon any breach.
+- **Legal Action** — The copyright holder reserves the right to pursue all available legal remedies, including but not limited to injunctive relief, statutory damages, and recovery of attorney's fees.
+- **Publication** — The copyright holder may publicly identify entities or individuals found to be in violation of this license.
+
+**This software is provided "AS IS", without warranty of any kind.**
+
+---
+
+## Contributions
+
+By submitting a pull request, patch, or contribution to this project, you agree that:
+
+- Your contribution is licensed under the same terms as this license.
+- You have the right to submit the contribution (it is your original work or you have permission).
+
+---
+
+## Disclaimer
+
+This project was developed with the assistance of **artificial intelligence tools** alongside human developers. AI was used to assist with code generation, debugging, documentation, and iterative improvement throughout the project lifecycle.
+
+The content, features, and functionality of this software are the result of collaborative human-AI development. While every effort has been made to ensure quality and accuracy, users should exercise their own judgment when relying on any information or functionality provided by this application.

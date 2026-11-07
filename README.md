@@ -28,6 +28,22 @@ The app starts with **sample data**. Once you connect a source it switches to re
    ```
    Without a Mac you can use EAS Build: `npx eas build --profile development --platform ios`.
 
+## Backend (optional)
+
+An optional Express/MySQL backend is provided in the `api/` directory. It supports:
+
+- **Account management** — register, login, JWT authentication
+- **Cloud sync** — sync health data across devices via REST API
+- **Offline-first** — data is stored locally via AsyncStorage and synced when online
+
+To set up the backend:
+
+1. Ensure XAMPP MySQL is running.
+2. Import the schema: `mysql -u root -p < api/schema.sql`
+3. Install dependencies: `cd api && npm install`
+4. Configure credentials in `api/.env`
+5. Start the server: `npm start` (runs on port 3000 by default)
+
 ## Integrations
 
 | Source | Status |
@@ -58,13 +74,23 @@ Safety touches: crisis language in notes, journal or community posts surfaces a 
 
 Content and hotline data live in [src/mind/content.ts](src/mind/content.ts). Hotline numbers were checked against public sources in Nov 2026, but numbers change, so re-verify before release.
 
-### Before a real launch
-- Counseling and community need a **backend** (accounts, scheduling, payments, and **moderation** for the community).
-- Have a licensed clinician review the information and coping content.
-- Mood, journal and health data are sensitive: add an app lock (biometrics) and review privacy laws (e.g. the Philippine Data Privacy Act, HIPAA/GDPR if applicable).
-
 ## Notes
 - Dependencies are installed and `npm run typecheck` passes. A full Android JS bundle (`npx expo export --platform android`) builds successfully.
 - If `npm install` fails with `UNABLE_TO_VERIFY_LEAF_SIGNATURE` (a network that re-signs HTTPS traffic), run it with Node using the Windows certificate store, keeping TLS verification on: `$env:NODE_OPTIONS="--use-system-ca"`.
 - New Architecture is disabled in `app.json` because `react-native-health` is untested with it.
 - Not yet run on a device or emulator. Expect small runtime fixes (e.g. HealthKit field names).
+
+## License
+
+This project is licensed under the **Serenity License** — an open-source license that permits use, study, and sharing, but **prohibits commercial resale**. See [LICENSE](LICENSE) for full terms.
+
+Key restrictions:
+- You may not sell, sublicense, or monetize this software or derivative works as a standalone product.
+- Violations result in immediate termination of rights and may be subject to legal action, including injunctive relief, statutory damages, and publication of the violation.
+- All copies must retain the copyright notice and AI-assistance disclaimer.
+
+## AI Assistance Disclaimer
+
+This project was developed with the assistance of **artificial intelligence tools** alongside human developers. AI was used to assist with code generation, debugging, documentation, and iterative improvement throughout the project lifecycle.
+
+The content, features, and functionality of this software are the result of collaborative human-AI development. While every effort has been made to ensure quality and accuracy, users should exercise their own judgment when relying on any information or functionality provided by this application.
