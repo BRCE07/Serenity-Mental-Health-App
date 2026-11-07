@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Keyboard, View } from 'react-native';
+import { Keyboard, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Card, Screen, Txt, Input } from '../../src/components/ui';
 import { useAuth } from '../../src/state/AuthContext';
@@ -43,7 +43,7 @@ export default function RegisterScreen() {
           </Txt>
 
           <Card style={{ width: '100%', gap: space.md }}>
-          <View style={{ gap: space.sm }}>
+            <View style={{ gap: space.sm }}>
             <Txt v="label" color={colors.text}>Username</Txt>
             <Input
               placeholder="Your name"

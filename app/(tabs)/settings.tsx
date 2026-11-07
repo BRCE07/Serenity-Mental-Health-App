@@ -218,7 +218,7 @@ export default function Settings() {
                   alignItems: 'center', justifyContent: 'center',
                 }}
               >
-                <Ionicons name={ICONS[c.id]} size={24} color={connected ? colors.good : colors.text} />
+                <Ionicons name={c.id === 'apple' ? 'watch' : c.id === 'strava' ? 'bicycle' : c.id === 'garmin' ? 'navigate-circle' : 'heart'} size={24} color={connected ? colors.good : colors.text} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
                 <Txt v="h2">{c.name}</Txt>

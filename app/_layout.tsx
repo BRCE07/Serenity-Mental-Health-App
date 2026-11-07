@@ -21,7 +21,7 @@ function TabRoutes() {
 
   if (!isAuthenticated) {
     return (
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+      <Stack key="auth" screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
         <Stack.Screen name="auth/login" options={{ animation: 'fade' }} />
         <Stack.Screen name="auth/register" options={{ presentation: 'modal', animation: 'fade' }} />
       </Stack>
@@ -29,7 +29,7 @@ function TabRoutes() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+    <Stack key="tabs" screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
       <Stack.Screen name="(tabs)" />
     </Stack>
   );
