@@ -270,10 +270,12 @@ export default function Settings() {
         </Card>
       ) : null}
 
-      {/* Info */}
+      {/* App version & copyright */}
       <View style={{ paddingHorizontal: 4, marginTop: 8 }}>
-        <Txt v="label" style={{ fontSize: 11, lineHeight: 16, textAlign: 'center' }}>
-          Data is saved locally on this device and synced to your account when connected.
+        <Txt v="label" style={{ fontSize: 10, lineHeight: 15, textAlign: 'center', color: colors.faint }}>
+          Serenity v1.1.3
+          {'\n'}
+          © 2026 GAntiGrav
         </Txt>
       </View>
 
