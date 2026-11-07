@@ -1,4 +1,4 @@
-# Lumen
+# Serenity
 
 A calm, modern health app: one daily **Balance** score built from Move, Recover and Heart, with Apple Health (Apple Watch) and Strava connections.
 
@@ -34,7 +34,7 @@ The app starts with **sample data**. Once you connect a source it switches to re
 |---|---|
 | **Apple Health / Apple Watch** | Implemented via `react-native-health`. Apple Watch writes to HealthKit, so reading HealthKit covers it. iPhone only. |
 | **Strava** | Implemented: OAuth + `GET /athlete/activities`. Create an app at https://www.strava.com/settings/api and set **Authorization Callback Domain** to `redirect`. |
-| **Garmin** | Not direct. Garmin's API is server-to-server and requires partner approval. Workaround: in Garmin Connect enable Strava under Partner Apps; Lumen then reads your Garmin activities through Strava. |
+| **Garmin** | Not direct. Garmin's API is server-to-server and requires partner approval. Workaround: in Garmin Connect enable Strava under Partner Apps; Serenity then reads your Garmin activities through Strava. |
 
 > Strava client secret: the prototype reads it from `EXPO_PUBLIC_STRAVA_CLIENT_SECRET`, which ships inside the app. For production, do the token exchange on your own backend.
 
