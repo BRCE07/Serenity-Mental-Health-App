@@ -7,7 +7,8 @@
     "start": "expo start --dev-client",
     "ios": "expo run:ios",
     "android": "expo run:android",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "node scripts/patch-image-size.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
