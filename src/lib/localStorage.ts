@@ -1,13 +1,16 @@
 /**
  * Local storage adapter — saves all health data to AsyncStorage
  * so the app works offline immediately, without any external setup.
+ * Auth credentials (tokens) are stored in SecureStore for encryption.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { DaySummary, Workout } from '../types';
 
 const KEY_USER = 'serenity:user';
 const KEY_SUMMARY = 'serenity:summary';
 const KEY_WORKOUTS = 'serenity:workouts';
+const KEY_TOKEN = 'serenity:token';
 
 export interface LocalUser {
   id: number;
@@ -19,16 +22,23 @@ export interface LocalUser {
 export async function getUser(): Promise<LocalUser | null> {
   try {
     const raw = await AsyncStorage.getItem(KEY_USER);
-    return raw ? JSON.parse(raw) : null;
+    const token = await SecureStore.getItemAsync(KEY_TOKEN);
+    if (!raw || !token) return null;
+    const user = JSON.parse(raw) as LocalUser;
+    return { ...user, token };
   } catch { return null; }
 }
 
 export async function setUser(user: LocalUser): Promise<void> {
-  await AsyncStorage.setItem(KEY_USER, JSON.stringify(user));
+  // Extract token for SecureStore; store rest in AsyncStorage
+  const { token, ...userWithoutToken } = user;
+  await AsyncStorage.setItem(KEY_USER, JSON.stringify(userWithoutToken));
+  await SecureStore.setItemAsync(KEY_TOKEN, token);
 }
 
 export async function clearUser(): Promise<void> {
   await AsyncStorage.removeItem(KEY_USER);
+  await SecureStore.deleteItemAsync(KEY_TOKEN);
 }
 
 // ─── Day Summary ─────────────────────────────────────────────

@@ -3,7 +3,9 @@
  * Server is configured via API_URL env var, defaults to localhost:3000.
  */
 
-const API_URL = __DEV__ ? 'http://10.0.2.2:3000' : 'http://<YOUR_SERVER_IP>:3000';
+const API_URL = __DEV__
+  ? (process.env.EXPO_PUBLIC_DEV_API_URL || 'http://localhost:3000')
+  : (process.env.EXPO_PUBLIC_API_URL || 'https://<YOUR_SERVER_IP>:3000');
 
 interface AuthResponse {
   user: { id: number; email: string; username: string };

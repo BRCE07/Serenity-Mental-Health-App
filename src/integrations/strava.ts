@@ -28,7 +28,11 @@ async function loadTokens(): Promise<Tokens | null> {
 }
 
 async function saveTokens(t: Tokens) {
-  await SecureStore.setItemAsync(TOKEN_KEY, JSON.stringify(t));
+  try {
+    await SecureStore.setItemAsync(TOKEN_KEY, JSON.stringify(t));
+  } catch (err) {
+    console.error('Failed to save Strava tokens:', err);
+  }
 }
 
 async function tokenRequest(body: Record<string, string>): Promise<Tokens> {
@@ -85,7 +89,10 @@ export const strava: Connector = {
   async disconnect() {
     try {
       const token = await getValidAccessToken();
-      await fetch(`${discovery.revocationEndpoint}?access_token=${token}`, { method: 'POST' });
+      await fetch(discovery.revocationEndpoint!, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
     } catch {
       // Best effort; always clear local tokens
     }

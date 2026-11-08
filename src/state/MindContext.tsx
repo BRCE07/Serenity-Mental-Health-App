@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import {
   Booking, Contact, JournalEntry, MindData, MoodEntry, Post, Region, ReminderSettings,
 } from '../mind/types';
@@ -7,6 +8,7 @@ import { randomAlias } from '../mind/content';
 import { applyReminders } from '../mind/notifications';
 
 const KEY = 'lumen.mind.v1';
+const KEY_ENCRYPTED = 'lumen.mind.encrypted';
 
 const defaults = (): MindData => ({
   moods: [],
@@ -61,7 +63,7 @@ export function MindProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(KEY);
+        const raw = await SecureStore.getItemAsync(KEY_ENCRYPTED);
         if (raw) {
           const parsed = { ...defaults(), ...(JSON.parse(raw) as Partial<MindData>) };
           setData(parsed);
@@ -77,7 +79,7 @@ export function MindProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loadedRef.current) return;
-    AsyncStorage.setItem(KEY, JSON.stringify(data)).catch(() => {});
+    SecureStore.setItemAsync(KEY_ENCRYPTED, JSON.stringify(data)).catch(() => {});
   }, [data]);
 
   const patch = useCallback((fn: (d: MindData) => Partial<MindData>) => {

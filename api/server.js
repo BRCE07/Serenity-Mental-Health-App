@@ -28,16 +28,21 @@ const authLimiter = rateLimit({
   message: { error: 'Too many authentication attempts, please try again later' },
 });
 
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:8081', credentials: true }));
 app.use(express.json());
 
 // ─── DB Pool ─────────────────────────────────────────────────
+if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_NAME) {
+  console.error('DB_HOST, DB_USER, DB_NAME, DB_PASSWORD are required in .env');
+  process.exit(1);
+}
+
 const db = mysql.createPool({
-  host: process.env.DB_HOST || '127.0.0.1',
-  port: process.env.DB_PORT || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'serenity',
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT || '3306'),
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
 });
@@ -71,13 +76,17 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     if (!email || !password || !username) {
       return res.status(400).json({ error: 'email, password, and username required' });
     }
+    // Password strength: min 8 chars, at least one letter and one number
+    if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters with letters and numbers' });
+    }
     const hash = await bcrypt.hash(password, 10);
     const result = await db.query(
       'INSERT INTO users (email, password_hash, username) VALUES (?, ?, ?)',
       [email.toLowerCase(), hash, username]
     );
     const userId = result[0].insertId;
-    const token = jwt.sign({ id: userId, email: email.toLowerCase() }, process.env.JWT_SECRET || 'serenity-secret-change-me', { expiresIn: '30d' });
+    const token = jwt.sign({ id: userId, email: email.toLowerCase() }, process.env.JWT_SECRET || 'serenity-secret-change-me', { expiresIn: '7d' });
     res.status(201).json({ user: { id: userId, email: email.toLowerCase(), username }, token });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
@@ -104,7 +113,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     if (!match) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET || 'serenity-secret-change-me', { expiresIn: '30d' });
+    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET || 'serenity-secret-change-me', { expiresIn: '7d' });
     res.json({ user: { id: user.id, email: user.email, username: user.username }, token });
   } catch (err) {
     console.error('Login error:', err);
