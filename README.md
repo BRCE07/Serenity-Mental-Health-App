@@ -31,7 +31,7 @@ The app starts with **sample data**. Connect a health source to switch to real d
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/itsmenexus23/Serenity-Mental-Health-App.git
+git clone https://github.com/BRCE07/Serenity-Mental-Health-App.git
 cd Serenity-Mental-Health-App
 npm install
 npx expo install --fix
